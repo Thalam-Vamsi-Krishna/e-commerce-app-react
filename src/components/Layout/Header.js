@@ -1,10 +1,18 @@
-import { Fragment, useState } from "react";
+import { Fragment, useState, useContext } from "react";
 import { Navbar, Nav, Button, Container } from "react-bootstrap";
 import Cart from "../Cart/Cart";
+import CartContext from "../Store/CartContext";
 import { BsCart3 } from "react-icons/bs";
 
 const Header = () => {
   const [showCart, setShowCart] = useState(false);
+  const cartCtx = useContext(CartContext);
+
+  const { items } = cartCtx;
+
+  const numberOfCartItems = items.reduce((curNumber, item) => {
+    return curNumber + item.amount;
+  }, 0);
   const openCart = () => {
     setShowCart(true);
   };
@@ -48,6 +56,7 @@ const Header = () => {
           onClick={openCart}
         >
           Cart <BsCart3 />
+          {numberOfCartItems}
         </Button>
       </Navbar>
       <p
