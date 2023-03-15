@@ -39,7 +39,7 @@ const Header = () => {
     <Fragment>
       <Navbar bg="dark" expand="sm" variant="dark">
         <Container className="justify-content-center">
-          <Nav>
+          <Nav className="flex-grow-3">
             <Nav.Item style={{ marginRight: "40px" }}>
               <NavLink
                 to="/home"
