@@ -1,204 +1,195 @@
-import { useContext, useReducer } from "react";
-import AuthContext from "./Auth-Context";
+import { useContext, useState, useEffect } from "react";
 import CartContext from "./CartContext";
+import AuthContext from "./Auth-Context";
 
-const defaultCartState = {
+const defaultCart = {
   items: [],
   totalAmount: 0,
 };
 
-const cartReducer = (state, action) => {
-  if (action.type === "ADD_ITEM") {
-    const existingCartItemIndex = state.items.findIndex(
-      (cartItem) => cartItem.id === action.item.id
+const CartProvider = (props) => {
+  const authCtx = useContext(AuthContext);
+  const email = authCtx.email.replace(/[^a-zA-Z0-9]/g, "");
+  const [cart, setCart] = useState(defaultCart);
+  if (!sessionStorage.getItem("fetchExecuted") && authCtx.isLoggedIn) {
+    fetch(
+      `https://react-ecommerce-012-default-rtdb.firebaseio.com/cart${email}.json`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ items: [], totalAmount: 0 }),
+      }
     );
-    const existingCartItem = state.items[existingCartItemIndex];
+    sessionStorage.setItem("fetchExecuted", true);
+  }
+  useEffect(() => {
+    if (!authCtx.isLoggedIn) {
+      setCart(defaultCart);
+    }
+  }, [authCtx.isLoggedIn]);
+  const addItemtoCart = async (item) => {
+    const existingCartItemIndex = cart.items.findIndex(
+      (cartItem) => cartItem.id === item.id
+    );
+    const existingCartItem = cart.items[existingCartItemIndex];
     let updatedItems;
     if (existingCartItem) {
       const updatedItem = {
         ...existingCartItem,
         quantity: existingCartItem.quantity + 1,
-        amount: existingCartItem.amount + action.item.amount,
+        amount: existingCartItem.amount + item.amount,
       };
-      updatedItems = [...state.items];
+      updatedItems = [...cart.items];
       updatedItems[existingCartItemIndex] = updatedItem;
     } else {
       const newItem = {
-        ...action.item,
+        ...item,
         quantity: 1,
       };
-      updatedItems = state.items.concat(newItem);
+      updatedItems = cart.items.concat(newItem);
     }
-    const updatedTotalAmount = state.totalAmount + action.item.amount;
-    return {
+    const updatedTotalAmount = cart.totalAmount + item.amount;
+    setCart({
       items: updatedItems,
       totalAmount: updatedTotalAmount,
-    };
-  }
-  if (action.type === "REMOVE_ITEM") {
-    const existingCartItemIndex = state.items.findIndex(
-      (cartItem) => cartItem.id === action.id
-    );
-    const existingItem = state.items[existingCartItemIndex];
-    const updatedTotalAmount = action.totalAmount;
-
-    const updatedItems = state.items.filter((item) => item.id !== action.id);
-
-    return {
-      items: updatedItems,
-      totalAmount: updatedTotalAmount,
-    };
-  }
-
-  if (action.type === "UPDATE_ITEM") {
-    const existingCartItemIndex = state.items.findIndex(
-      (cartItem) => cartItem.id === action.id
-    );
-    const existingItem = state.items[existingCartItemIndex];
-    const updatedItem = {
-      ...existingItem,
-      quantity: action.quantity,
-      amount: (existingItem.amount / existingItem.quantity) * action.quantity,
-    };
-    const updatedItems = [...state.items];
-    updatedItems[existingCartItemIndex] = updatedItem;
-    const updatedTotalAmount = state.items.reduce(
-      (acc, item) => acc + item.amount,
-      0
-    );
-    return {
-      items: updatedItems,
-      totalAmount: updatedTotalAmount,
-    };
-  }
-  if (action.type === "SET_CART") {
-    return {
-      items: action.items,
-      totalAmount: action.totalAmount,
-    };
-  }
-  if (action.type === "CLEAR_CART") {
-    return defaultCartState;
-  }
-  return defaultCartState;
-};
-
-const CartProvider = (props) => {
-  const [cartState, dispatchCartAction] = useReducer(
-    cartReducer,
-    defaultCartState
-  );
-
-  const authCtx = useContext(AuthContext);
-  const email = authCtx.email.replace(/[^a-zA-Z0-9]/g, "");
-
-  const addItemToCart = async (item) => {
+    });
     try {
       const response = await fetch(
         `https://react-ecommerce-012-default-rtdb.firebaseio.com/cart${email}.json`,
         {
-          method: "POST",
+          method: "PUT",
           headers: {
             "Content-Type": "application/json",
           },
-          body: JSON.stringify(item),
+          body: JSON.stringify({
+            items: updatedItems,
+            totalAmount: updatedTotalAmount,
+          }),
         }
       );
       if (!response.ok) {
-        throw new Error("Something went wrong while adding the item to cart.");
+        console.log("Something went wrong while adding the item to database");
+      } else {
+        console.log("Successfully added item to the database");
       }
     } catch (error) {
       console.log(error.message);
     }
-    dispatchCartAction({ type: "ADD_ITEM", item: item });
   };
 
   const removeItemFromCart = async (id) => {
+    const existingCartItemIndex = cart.items.findIndex(
+      (cartItem) => cartItem.id === id
+    );
+    const existingItem = cart.items[existingCartItemIndex];
+    const updatedTotalAmount = cart.totalAmount - existingItem.amount;
+    const updatedItems = cart.items.filter((item) => item.id !== id);
+    setCart({
+      items: updatedItems,
+      totalAmount: updatedTotalAmount,
+    });
     try {
       const response = await fetch(
-        `https://react-ecommerce-012-default-rtdb.firebaseio.com/cart${email}/${id}.json`,
+        `https://react-ecommerce-012-default-rtdb.firebaseio.com/cart${email}.json`,
         {
-          method: "DELETE",
+          method: "PUT",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            items: updatedItems,
+            totalAmount: updatedTotalAmount,
+          }),
         }
       );
       if (!response.ok) {
-        throw new Error(
-          "Something went wrong while deleting the item from cart."
+        console.log(
+          "Something went wrong while deleting the item from database"
         );
+      } else {
+        console.log("Successfully deleted the item from database");
       }
     } catch (error) {
       console.log(error.message);
     }
-    dispatchCartAction({ type: "REMOVE_ITEM", id: id });
   };
 
   const updateQuantity = async (id, quantity) => {
+    const existingCartItemIndex = cart.items.findIndex(
+      (cartItem) => cartItem.id === id
+    );
+    const existingItem = cart.items[existingCartItemIndex];
+    const updatedItem = {
+      ...existingItem,
+      quantity: quantity,
+      amount: (existingItem.amount / existingItem.quantity) * quantity,
+    };
+    const updatedItems = [...cart.items];
+    updatedItems[existingCartItemIndex] = updatedItem;
+    const updatedTotalAmount = cart.items.reduce(
+      (acc, item) => acc + item.amount,
+      0
+    );
+    setCart({
+      items: updatedItems,
+      totalAmount: updatedTotalAmount,
+    });
     try {
       const response = await fetch(
-        `https://react-ecommerce-012-default-rtdb.firebaseio.com/cart${email}/${id}.json`,
+        `https://react-ecommerce-012-default-rtdb.firebaseio.com/cart${email}.json`,
         {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ quantity: quantity }),
+          body: JSON.stringify({
+            items: updatedItems,
+            totalAmount: updatedTotalAmount,
+          }),
         }
       );
       if (!response.ok) {
-        throw new Error("Something went wrong while updating the item.");
+        console.log("Something went wrong while updating the item in database");
+      } else {
+        console.log("Successfully updated the item in database");
       }
     } catch (error) {
       console.log(error.message);
     }
-    dispatchCartAction({ type: "UPDATE_ITEM", id: id, quantity: quantity });
   };
 
-  const fetchCartHandler = async () => {
+  const fetchCartItems = async () => {
     try {
       const response = await fetch(
         `https://react-ecommerce-012-default-rtdb.firebaseio.com/cart${email}.json`
       );
       if (!response.ok) {
-        throw new Error(
-          "Something went wrong while fetching Items of the cart"
+        console.log(
+          "Something went wrong while fetching Items from the database"
         );
+      } else {
+        console.log("Successfully fetched items from the database");
       }
       const data = await response.json();
-      dispatchCartAction({
-        type: "SET_CART",
-        items: data.items || [],
-        totalAmount: data.totalAmount || 0,
+      setCart({
+        items: data.items,
+        totalAmount: data.totalAmount,
       });
     } catch (error) {
       console.log(error.message);
     }
   };
 
-  const clearCartHandler = async () => {
-    try {
-      const response = await fetch(
-        `https://react-ecommerce-012-default-rtdb.firebaseio.com/cart${email}.json`,
-        {
-          method: "DELETE",
-        }
-      );
-      if (!response.ok) {
-        throw new Error("Something went wrong while clearing the cart");
-      }
-      dispatchCartAction({
-        type: "CLEAR_CART",
-      });
-    } catch (error) {
-      console.log(error.message);
-    }
-  };
-
+  useEffect(() => {
+    fetchCartItems();
+  }, []);
   const cartContext = {
-    items: cartState.items,
-    totalAmount: cartState.totalAmount,
-    addItem: addItemToCart,
+    items: cart.items,
+    totalAmount: cart.totalAmount,
+    addItem: addItemtoCart,
     removeItem: removeItemFromCart,
     updateQuantity: updateQuantity,
-    getItems: fetchCartHandler,
-    clearItems: clearCartHandler,
+    getItems: fetchCartItems,
   };
 
   return (
